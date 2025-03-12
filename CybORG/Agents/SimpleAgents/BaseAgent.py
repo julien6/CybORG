@@ -1,13 +1,14 @@
+import numpy as np
+
 from gym.utils import seeding
-
-
 from CybORG.Shared import Results
 
 class BaseAgent:
     def __init__(self, name: str, np_random=None):
         self.name = name
         if np_random is None:
-            np_random, seed = seeding.np_random()
+            # np_random, seed = seeding.np_random()
+            np_random = np.random.default_rng()
         self.np_random = np_random
 
     def train(self, results: Results):

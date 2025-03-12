@@ -106,9 +106,11 @@ class Host(Entity):
         return observation
 
     def get_ephemeral_port(self):
-        port = self.np_random.randint(49152, 60000)
+        # port = self.np_random.randint(49152, 60000)
+        port = self.np_random.integers(49152, 60000)
         if port in self.ephemeral_ports:
-            port = self.np_random.randint(49152, 60000)
+            # port = self.np_random.randint(49152, 60000)
+            port = self.np_random.integers(49152, 60000)
         self.ephemeral_ports.append(port)
         return port
 
@@ -144,7 +146,8 @@ class Host(Entity):
             pids = []
             for process in self.processes:
                 pids.append(process.pid)
-            pid = max(pids) + self.np_random.randint(1, 10)
+            # pid = max(pids) + self.np_random.randint(1, 10)
+            pid = max(pids) + self.np_random.integers(1, 10)
         if type(open_ports) is dict:
             open_ports = [open_ports]
 

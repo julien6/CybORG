@@ -1,5 +1,5 @@
 import inspect
-
+import numpy as np
 import pytest
 from gym.utils import seeding
 
@@ -26,7 +26,8 @@ def test_file_scenario_generator(get_scenario_path):
 def test_valid_file_scenario(get_scenario_path):
     path = get_scenario_path
     sg = FileReaderScenarioGenerator(path)
-    np_random, seed = seeding.np_random(123)
+    # np_random, seed = seeding.np_random(123)
+    np_random = np.random.default_rng(123)
     sg.validate_scenario(sg.create_scenario(np_random))
 
 # test file scenario generator
@@ -39,6 +40,7 @@ def test_drone_scenario_generator():
 # test file scenario generator
 @pytest.mark.parametrize('seed', list(range(100)))
 def test_valid_drone_scenario(seed):
-    np_random, seed = seeding.np_random(seed)
+    # np_random, seed = seeding.np_random(seed)
+    np_random = np.random.default_rng(123)
     sg = DroneSwarmScenarioGenerator()
     sg.validate_scenario(sg.create_scenario(np_random))

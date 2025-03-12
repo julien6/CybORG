@@ -9,7 +9,8 @@ from CybORG.Simulator.Actions.ConcreteActions.ControlTraffic import BlockTraffic
 class RedDroneWormAgent(BaseAgent):
     def __init__(self, name, np_random=None):
         super().__init__(name, np_random)
-        self.behaviour_type = self.np_random.randint(0, 6)
+        # self.behaviour_type = self.np_random.randint(0, 6)
+        self.behaviour_type = self.np_random.integers(0, 6)
         self.chance_to_change = 0.1
         self.exploited_drones = []
         self.target_ip = None
@@ -21,7 +22,8 @@ class RedDroneWormAgent(BaseAgent):
         if self.own_ip is None:
             self.own_ip = observation['drone_'+self.name.split('_')[-1]]['Interface'][0]['IP Address']
         if self.np_random.random() < self.chance_to_change:
-            self.behaviour_type = self.np_random.randint(0, 10)
+            # self.behaviour_type = self.np_random.randint(0, 10)
+            self.behaviour_type = self.np_random.integers(0, 10)
         if self.behaviour_type == 0:
             # behaviour 0 is exploit as many drones as possible
             if self.target_ip is None or observation['success'] != True:
@@ -98,7 +100,8 @@ class RedDroneWormAgent(BaseAgent):
             else:
                 return Sleep()
         # just in case choose new behaviour and sleep
-        self.behaviour_type = self.np_random.randint(0, 6)
+        # self.behaviour_type = self.np_random.randint(0, 6)
+        self.behaviour_type = self.np_random.integers(0, 6)
         return Sleep()
 
     def train(self, results: Results):

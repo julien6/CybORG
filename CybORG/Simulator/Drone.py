@@ -107,7 +107,8 @@ class Drone(Host):
             if min(self.position) < 10.0 or max(self.position) > 90.0:
                 self.reset_drone_heading()
         elif self.np_random.random() < self.move_chance:
-            self.num_moves_remaining = self.np_random.randint(5, 10)
+            # self.num_moves_remaining = self.np_random.randint(5, 10)
+            self.num_moves_remaining = self.np_random.integers(5, 10)
             self.velocity = self.np_random.uniform(-self.max_velocity, self.max_velocity, 2)
         else:
             self.fixed_heading = None

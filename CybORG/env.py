@@ -1,4 +1,5 @@
 # Copyright DST Group. Licensed under the MIT license.
+import numpy as np
 import warnings
 from typing import Any, Union
 
@@ -52,7 +53,7 @@ class CybORG(CybORGLogger):
                  environment: str = "sim",
                  env_config=None,
                  agents: dict = None,
-                 seed: Union[int,CustomGenerator] = None):
+                 seed: Union[int,CustomGenerator] = 42):
         """Instantiates the CybORG class.
 
         Parameters
@@ -74,9 +75,14 @@ class CybORG(CybORGLogger):
         self.scenario_generator = scenario_generator
         self._log_info(f"Using scenario generator {str(scenario_generator)}")
         if seed is None or type(seed) is int:
-            self.np_random, seed = seeding.np_random(seed)
+            # self.np_random, seed = seeding.np_random(seed)
+            self.np_random = np.random.default_rng(seed)
+            self.seed = seed
+            if seed is None:
+                self.seed = self.np_random.integers(0, 500)
         else:
             self.np_random = seed
+            self.seed = self.np_random.integers(0, 500)
         self.environment_controller = self._create_env_controller(env_config, agents)
         # self.renderer:Renderer = None
 
@@ -230,7 +236,9 @@ class CybORG(CybORGLogger):
             The initial observation and actions of an agent.
         """
         if seed is not None:
-            self.np_random, seed = seeding.np_random(seed)
+            # self.np_random, seed = seeding.np_random(seed)
+            self.np_random = np.random.default_rng(seed)
+            self.seed = seed
         return self.environment_controller.reset(agent=agent, np_random=self.np_random)
 
     def shutdown(self, **kwargs) -> bool:
@@ -362,7 +370,8 @@ class CybORG(CybORGLogger):
         ----------
         seed : int
         """
-        self.np_random, seed = seeding.np_random(seed)
+        # self.np_random, seed = seeding.np_random(seed)
+        self.np_random = np.random.default_rng(seed)
         self.environment_controller.set_np_random(self.np_random)
 
 
