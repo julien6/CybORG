@@ -24,8 +24,8 @@ from networkx.readwrite.json_graph.node_link import node_link_data
 # from CybORG.render.renderer import Renderer
 
 class Renderer:
-    def __init__(self):
-        self.fig, self.ax = plt.subplots(figsize=(8, 8))
+    def __init__(self, mode="human"):
+        self.fig, self.ax = plt.subplots(figsize=(11, 8))
         self.initialized = False
         self.symbol_colors = {
             'BlueDrone': 'blue',
@@ -35,7 +35,8 @@ class Renderer:
             'NeutralDrone': 'gray'
         }
         plt.ion()  # Mode interactif
-        self.fig.show()
+        if mode == "human":
+            self.fig.show()
         self.fig.canvas.draw()
 
     def process_render_data(self, data):
@@ -108,11 +109,10 @@ class Renderer:
         # Legend
         handles = [mpatches.Patch(color=c, label=s) for s, c in self.symbol_colors.items()]
         self.ax.legend(handles=handles, loc='lower right', bbox_to_anchor=(1.35, 0))
-
+        
         # Canvas update
-        if mode == "human":
-            self.fig.canvas.draw()
-            self.fig.canvas.flush_events()
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
 
         if mode == "rgb_array":
             image = np.frombuffer(self.fig.canvas.tostring_rgb(), dtype='uint8')
@@ -548,7 +548,7 @@ class CybORG(CybORGLogger):
         assert mode in [
             'human', 'rgb_array'], f"render is not available for {mode}, please use a mode from {['human', 'rgb_array']}"
         if self.renderer is None:
-            self.renderer = Renderer()
+            self.renderer = Renderer(mode=mode)
         # Extract the data from the simulation.
         data = {'drones': {hostname: {"x": host_info.position[0],
                                       "y": host_info.position[1]} for hostname, host_info in
