@@ -110,8 +110,9 @@ class Renderer:
         self.ax.legend(handles=handles, loc='lower right', bbox_to_anchor=(1.35, 0))
 
         # Canvas update
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
+        if mode == "human":
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
 
         if mode == "rgb_array":
             image = np.frombuffer(self.fig.canvas.tostring_rgb(), dtype='uint8')
