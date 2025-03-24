@@ -1,11 +1,12 @@
 # Copyright DST Group. Licensed under the MIT license.
 import numpy as np
 import warnings
-from typing import Any, Union
-
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import gym
-from gym.utils import seeding
 
+from gym.utils import seeding
+from typing import Any, Union
 from CybORG.Shared import Observation, Results, CybORGLogger
 from CybORG.Shared.Enums import DecoyType
 from CybORG.Shared.EnvironmentController import EnvironmentController
@@ -18,9 +19,104 @@ from CybORG.Simulator.Actions.ConcreteActions.ControlTraffic import BlockTraffic
 from CybORG.Simulator.Actions.ConcreteActions.ExploitActions.ExploitAction import ExploitAction
 from CybORG.Simulator.Scenarios import DroneSwarmScenarioGenerator
 from CybORG.Tests.utils import CustomGenerator
+from networkx.readwrite.json_graph.node_link import node_link_data
+# from CybORG.Agents.Wrappers import PettingZooParallelWrapper
 # from CybORG.render.renderer import Renderer
 
+class Renderer:
+    def __init__(self):
+        self.fig, self.ax = plt.subplots(figsize=(8, 8))
+        self.initialized = False
+        self.symbol_colors = {
+            'BlueDrone': 'blue',
+            'RedDrone': 'red',
+            'BlueDroneLowPrivRed': 'purple',
+            'BlueDroneProtected': 'cyan',
+            'NeutralDrone': 'gray'
+        }
+        plt.ion()  # Mode interactif
+        self.fig.show()
+        self.fig.canvas.draw()
 
+    def process_render_data(self, data):
+        self.data = data
+
+    def render(self, mode="human", verbose=False):
+        if not self.initialized:
+            self.ax.set_xlim(0, 100)
+            self.ax.set_ylim(0, 100)
+            self.ax.set_xticks(np.arange(0, 110, 10))
+            self.ax.set_yticks(np.arange(0, 110, 10))
+            self.ax.set_aspect('equal')
+            self.initialized = True
+
+        self.ax.clear()
+        self.ax.set_xlim(0, 100)
+        self.ax.set_ylim(0, 100)
+        self.ax.set_xticks(np.arange(0, 110, 10))
+        self.ax.set_yticks(np.arange(0, 110, 10))
+
+        # Title
+        step = self.data.get('step', 0)
+        reward_b = self.data['rewards']['Blue']
+        reward_r = self.data['rewards']['Red']
+        self.ax.set_title(f"Step {step} - Blue Reward: {reward_b:.2f} | Red Reward: {reward_r:.2f}")
+
+        # Draw drones
+        for drone, info in self.data['drones'].items():
+            x, y = info['x'], info['y']
+            color = self.symbol_colors.get(info['symbol'], 'black')
+            self.ax.plot(x, y, 'o', markersize=10, color=color)
+            self.ax.text(x + 1, y + 1, drone, fontsize=8)
+
+        # Draw network links
+        for src, neighbors in self.data['network'].items():
+            src_pos = self.data['drones'][src]
+            for dst in neighbors:
+                if dst == src:
+                    continue
+                dst_pos = self.data['drones'][dst]
+                self.ax.plot(
+                    [src_pos['x'], dst_pos['x']],
+                    [src_pos['y'], dst_pos['y']],
+                    color='lightgray', linestyle='--', linewidth=1
+                )
+
+        # Draw actions
+        for act in self.data['actions']:
+            src = self.data['drones'].get(act['source'], None)
+            dst = self.data['drones'].get(act['destination'], None)
+            if src is None or dst is None:
+                continue
+
+            arrow_color = 'red' if 'red' in act['agent'].lower() else 'blue'
+
+            # Arrows
+            self.ax.annotate(
+                '',
+                xy=(dst['x'], dst['y']),
+                xytext=(src['x'], src['y']),
+                arrowprops=dict(facecolor=arrow_color, edgecolor=arrow_color, arrowstyle='->', lw=1.5),
+            )
+
+            # Annotation
+            mid_x = (src['x'] + dst['x']) / 2
+            mid_y = (src['y'] + dst['y']) / 2
+            self.ax.text(mid_x, mid_y, act['type'], fontsize=7, color=arrow_color,
+                         bbox=dict(facecolor='white', edgecolor='none', alpha=0.6, pad=1))
+
+        # Legend
+        handles = [mpatches.Patch(color=c, label=s) for s, c in self.symbol_colors.items()]
+        self.ax.legend(handles=handles, loc='lower right', bbox_to_anchor=(1.35, 0))
+
+        # Canvas update
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+        if mode == "rgb_array":
+            image = np.frombuffer(self.fig.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(self.fig.canvas.get_width_height()[::-1] + (3,))
+            return image
 
 class CybORG(CybORGLogger):
     """The main interface for the Cyber Operations Research Gym.
@@ -53,7 +149,7 @@ class CybORG(CybORGLogger):
                  environment: str = "sim",
                  env_config=None,
                  agents: dict = None,
-                 seed: Union[int,CustomGenerator] = 42):
+                 seed: Union[int, CustomGenerator] = 42):
         """Instantiates the CybORG class.
 
         Parameters
@@ -71,7 +167,8 @@ class CybORG(CybORGLogger):
             If None agents will be loaded from description in scenario file (default=None).
         """
         self.env = environment
-        assert issubclass(type(scenario_generator), ScenarioGenerator), f'Scenario generator object of type {type(scenario_generator)} must be a subclass of ScenarioGenerator'
+        assert issubclass(type(scenario_generator),
+                          ScenarioGenerator), f'Scenario generator object of type {type(scenario_generator)} must be a subclass of ScenarioGenerator'
         self.scenario_generator = scenario_generator
         self._log_info(f"Using scenario generator {str(scenario_generator)}")
         if seed is None or type(seed) is int:
@@ -83,8 +180,9 @@ class CybORG(CybORGLogger):
         else:
             self.np_random = seed
             self.seed = self.np_random.integers(0, 500)
-        self.environment_controller = self._create_env_controller(env_config, agents)
-        # self.renderer:Renderer = None
+        self.environment_controller = self._create_env_controller(
+            env_config, agents)
+        self.renderer: Renderer = None
 
     # getter method
     def get_renderer(self):
@@ -118,7 +216,7 @@ class CybORG(CybORGLogger):
                 tuple
                     the result of agent performing the action
                 """
-        if actions is not None and len(actions)>0:
+        if actions is not None and len(actions) > 0:
             agents = list(actions.keys())
         else:
             agents = []
@@ -160,7 +258,8 @@ class CybORG(CybORGLogger):
         else:
             result = Results(observation=self.get_observation(agent),
                              done=self.environment_controller.done,
-                             reward=round(sum(self.environment_controller.get_reward(agent).values()), 1),
+                             reward=round(
+                                 sum(self.environment_controller.get_reward(agent).values()), 1),
                              action_space=self.environment_controller.agent_interfaces[
                                  agent].action_space.get_action_space(),
                              action=self.environment_controller.action[agent])
@@ -374,7 +473,6 @@ class CybORG(CybORGLogger):
         self.np_random = np.random.default_rng(seed)
         self.environment_controller.set_np_random(self.np_random)
 
-
     def get_ip_map(self):
         """
         Returns a mapping of hostnames to ip addresses for the current scenario.
@@ -444,9 +542,10 @@ class CybORG(CybORGLogger):
         return self.environment_controller.get_active_agents()
 
     def render(self, mode='human'):
-        raise NotImplementedError("Rendering functionality is not currently available")
+        # raise NotImplementedError("Rendering functionality is not currently available")
         assert self.env == 'sim', 'render is currently only available for the simulation'
-        assert mode in ['human', 'rgb_array'], f"render is not available for {mode}, please use a mode from {['human', 'rgb_array']}"
+        assert mode in [
+            'human', 'rgb_array'], f"render is not available for {mode}, please use a mode from {['human', 'rgb_array']}"
         if self.renderer is None:
             self.renderer = Renderer()
         # Extract the data from the simulation.
@@ -468,7 +567,8 @@ class CybORG(CybORGLogger):
                 continue
             red_hosts += [i.hostname for i in self.environment_controller.state.sessions[agent].values() if
                           i.username == 'SYSTEM' or i.username == 'root']
-            red_low_hosts += [i.hostname for i in self.environment_controller.state.sessions[agent].values()]
+            red_low_hosts += [
+                i.hostname for i in self.environment_controller.state.sessions[agent].values()]
             # get agent actions
             if agent in self.environment_controller.action:
                 red_action = self.environment_controller.action[agent]
@@ -478,7 +578,8 @@ class CybORG(CybORGLogger):
                 if type(self.scenario_generator) is DroneSwarmScenarioGenerator:
                     red_source = 'drone_' + red_action.agent.split('_')[-1]
                 else:
-                    red_source = self.environment_controller.state.sessions[red_action.agent][red_action.session].hostname
+                    red_source = self.environment_controller.state.sessions[
+                        red_action.agent][red_action.session].hostname
                 red_target = None
                 if hasattr(red_action, 'subnet'):
                     red_target = [name for name, cidr in self.environment_controller.state.subnet_name_to_cidr.items() if
@@ -503,7 +604,7 @@ class CybORG(CybORGLogger):
                     else:
                         red_action_type = type(red_action)
 
-                    if red_action_type is not None:                    
+                    if red_action_type is not None:
                         data['actions'].append(
                             {"agent": red_from, "destination": red_target, "source": red_source, "type": red_action_type})
 
@@ -514,8 +615,8 @@ class CybORG(CybORGLogger):
                 continue
             blue_hosts += [i.hostname for i in self.environment_controller.state.sessions[agent].values()]
             blue_protected_hosts += [blue_session.hostname for blue_session in
-                                    self.environment_controller.state.sessions[agent].values() if
-                                    len([host_proc for host_proc in
+                                     self.environment_controller.state.sessions[agent].values() if
+                                     len([host_proc for host_proc in
                                          self.environment_controller.state.hosts[blue_session.hostname].processes if
                                          host_proc.decoy_type != DecoyType.NONE]) > 0]
             if agent in self.environment_controller.action:
@@ -526,17 +627,20 @@ class CybORG(CybORGLogger):
                 if type(self.scenario_generator) is DroneSwarmScenarioGenerator:
                     blue_source = 'drone_'+blue_action.agent.split('_')[-1]
                 else:
-                    blue_source = self.environment_controller.state.sessions[blue_action.agent][blue_action.session].hostname
+                    blue_source = self.environment_controller.state.sessions[
+                        blue_action.agent][blue_action.session].hostname
                 blue_target = None
                 if hasattr(blue_action, 'subnet'):
                     blue_target = [name for name, cidr in self.environment_controller.state.subnet_name_to_cidr.items() if
                                    cidr == blue_action.subnet][0] + 'Subnet'
                 elif hasattr(blue_action, 'ip_address'):
-                    blue_target = self.environment_controller.state.ip_addresses[blue_action.ip_address]
+                    blue_target = self.environment_controller.state.ip_addresses[
+                        blue_action.ip_address]
                 elif hasattr(blue_action, 'hostname'):
                     blue_target = blue_action.hostname
                 elif hasattr(blue_action, 'session') and blue_action.session in self.environment_controller.state.sessions[blue_action.agent]:
-                    blue_target = self.environment_controller.state.sessions[blue_action.agent][blue_action.session].hostname
+                    blue_target = self.environment_controller.state.sessions[
+                        blue_action.agent][blue_action.session].hostname
                 if blue_target is not None:
                     if type(blue_action) in (DiscoverNetworkServices, DiscoverRemoteSystems):
                         blue_action_type = 'scan'
@@ -555,7 +659,6 @@ class CybORG(CybORGLogger):
                             {"agent": blue_from, "source": blue_source, "destination": blue_target, "type": blue_action_type})
 
         # 'BlueDrone', 'BlueDroneLowProvRed', 'RedDrone', 'BlueDroneProtected'
-
 
         for hostname, host_info in self.environment_controller.state.hosts.items():
             # if red high priv
@@ -579,7 +682,8 @@ class CybORG(CybORGLogger):
         if 'Blue' not in self.environment_controller.reward:
             data['rewards']['Blue'] = 0
         else:
-            data['rewards']['Blue'] = sum(self.environment_controller.reward['Blue'].values())
+            data['rewards']['Blue'] = sum(
+                self.environment_controller.reward['Blue'].values())
         data['rewards']['Red'] = - data['rewards']['Blue']
         # Step 2: process render data retrieved in previous step.
         self.renderer.process_render_data(data)
@@ -599,3 +703,22 @@ class CybORG(CybORGLogger):
     @property
     def unwrapped(self):
         return self
+
+
+if __name__ == '__main__':
+
+    sg = DroneSwarmScenarioGenerator(num_drones=8)
+
+    env = CybORG(sg, 'sim')
+
+    # env = PettingZooParallelWrapper(env)
+    # env = AgentFreeCommsPettingZooParallelWrapper(env)
+    env.reset(seed=42)
+
+    # network_graph = node_link_data(env.environment_controller.state.link_diagram)
+    # print(network_graph)
+
+    print("\n\n")
+
+
+    env.render()
